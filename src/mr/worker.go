@@ -37,12 +37,11 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 
 	filename := RequestTask()
 	if filename == "nil" {
-		fmt.Println("ooooh ohhh spadodio!")
+		fmt.Println("Filename is empty")
 	}
 
-	mapf, reducef = loadPlugin(os.Args[1])
+	mapf, reducef = loadPlugin(filename)
 	intermediate := []KeyValue{}
-
 
 	file, err := os.Open(filename)
 	if err != nil {
