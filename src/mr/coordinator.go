@@ -21,7 +21,7 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 	return nil
 }
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
-	reply.Filename = "src/main/wc.so"
+	reply.Filename = "src/main/pg-dorian_gray.txt"
 	return nil
 }
 

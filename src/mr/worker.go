@@ -11,7 +11,8 @@ import (
 	"sort"
 )
 
-var ByKey []KeyValue{}
+// var ByKey []KeyValue{}
+type ByKey []KeyValue
 
 // for sorting by key.
 func (a ByKey) Len() int           { return len(a) }
@@ -40,7 +41,8 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		fmt.Println("Filename is empty")
 	}
 
-	mapf, reducef = loadPlugin(filename)
+	// denna funktionen kallas redan från mrworker.go med mapf och reducef parametrar.
+	// mapf, reducef = loadPlugin(filename) kan ta bort
 	intermediate := []KeyValue{}
 
 	file, err := os.Open(filename)
