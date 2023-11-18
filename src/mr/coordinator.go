@@ -8,7 +8,9 @@ import "net/http"
 
 type Coordinator struct {
 	// Your definitions here.
-
+	nReduce int
+	files   []string
+	done    bool
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -43,6 +45,12 @@ func (c *Coordinator) server() {
 func (c *Coordinator) Done() bool {
 	ret := false
 
+	if c.done == true {
+		ret = true
+	}
+	// question: what is the entire job?
+	// answer: when we have the final result after reduce tasks
+
 	// Your code here.
 
 	return ret
@@ -52,7 +60,7 @@ func (c *Coordinator) Done() bool {
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	c := Coordinator{}
+	c := Coordinator{files: files, nReduce: nReduce, done: false}
 
 	// Your code here.
 
