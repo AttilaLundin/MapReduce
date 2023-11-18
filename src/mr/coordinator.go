@@ -19,9 +19,12 @@ type Coordinator struct {
 //
 // the RPC argument and reply types are defined in rpc.go.
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
+	// todo: grant any task
 	reply.Filename = "../main/pg-dorian_gray.txt"
 	return nil
 }
+
+func (c *Coordinator) ProcessIntermediateFile()
 
 // start a thread that listens for RPCs from worker.go
 func (c *Coordinator) server() {

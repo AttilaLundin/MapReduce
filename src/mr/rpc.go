@@ -14,6 +14,10 @@ type GetTaskArgs struct {
 	X int
 }
 
+type IntermediateFile struct {
+	data []byte
+}
+
 type TaskReply struct {
 	Filename string
 }
