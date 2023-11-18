@@ -41,9 +41,6 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		fmt.Println("Filename is empty")
 	}
 
-	// denna funktionen kallas redan från mrworker.go med mapf och reducef parametrar.
-	// mapf, reducef = loadPlugin(filename) kan ta bort
-
 	file, err := os.Open(filename)
 	if err != nil {
 		println("The error is: ", err.Error())
@@ -55,11 +52,19 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	}
 	file.Close()
 	kva := mapf(filename, string(content))
-	intermediate = append(intermediate, kva...)
-	// Your worker implementation here.
 
-	// uncomment to send the Example RPC to the coordinator.
-	// CallExample()
+	// todo: make into json files instead of keyvalue slice
+	intermediate = append(intermediate, kva...)
+	/*
+		filename := "mr-" + ihash()
+		a, err := os.Create()
+		enc := json.NewEncoder(file)
+		for _, kv := ... {
+			err := enc.Encode(&kv)
+		// Your worker implementation here.
+
+		// uncomment to send the Example RPC to the coordinator.
+		// CallExample()
 
 	sort.Sort(ByKey(intermediate))
 
