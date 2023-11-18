@@ -66,6 +66,8 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		// uncomment to send the Example RPC to the coordinator.
 		// CallExample()
 
+
+	*/
 	sort.Sort(ByKey(intermediate))
 
 	oname := "mr-out-0"
