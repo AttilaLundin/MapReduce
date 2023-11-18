@@ -11,7 +11,7 @@ import (
 	"sort"
 )
 
-// var ByKey []KeyValue{}
+// var ByKey []KeyValue{} vad är detta?
 type ByKey []KeyValue
 
 // for sorting by key.
@@ -35,6 +35,7 @@ func ihash(key string) int {
 
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
+	intermediate := []KeyValue{}
 
 	filename := RequestTask()
 	if filename == "nil" {
@@ -43,10 +44,10 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 
 	// denna funktionen kallas redan från mrworker.go med mapf och reducef parametrar.
 	// mapf, reducef = loadPlugin(filename) kan ta bort
-	intermediate := []KeyValue{}
 
 	file, err := os.Open(filename)
 	if err != nil {
+		println("The error is: ", err.Error())
 		log.Fatalf("cannot open %v", filename)
 	}
 	content, err := ioutil.ReadAll(file)
