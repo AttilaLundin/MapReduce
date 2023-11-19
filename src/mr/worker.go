@@ -10,8 +10,7 @@ import (
 	"sort"
 )
 
-// var ByKey []KeyValue{} vad är detta?
-type ByKey []KeyValue
+type KeyValueSlice []KeyValue
 
 // for sorting by key.
 func (a ByKey) Len() int           { return len(a) }
@@ -36,64 +35,67 @@ func ihash(key string) int {
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 	intermediate := []KeyValue{}
 
-	filename := RequestTask()
-	if filename == "nil" {
+	reply := RequestMapTask()
+	if reply.Filename == "nil" {
 		fmt.Println("Filename is empty")
 	}
 
-	file, err := os.Open(filename)
-	if err != nil {
-		println("The error is: ", err.Error())
-		log.Fatalf("cannot open %v", filename)
-	}
-	content, err := ioutil.ReadAll(file)
-	if err != nil {
-		log.Fatalf("cannot read %v", filename)
-	}
-	file.Close()
-	kva := mapf(filename, string(content))
+	file, err := os.Open(reply.Filename)
+	printIfError(err)
 
-	// todo: make into json files instead of keyvalue slice
-	intermediate = append(intermediate, kva...)
+	content, err := io.ReadAll(file)
+	printIfError(err)
+
+	err = file.Close()
+	printIfError(err)
+
+	var mapResult KeyValueSlice = mapf(reply.Filename, string(content))
+	sort.Sort(mapResult)
+
+	intermediateFiles := make([]*os.File, reply.NReduce)
+	jsonEncoders := make([]*json.Encoder, reply.NReduce)
+	// create intermediate files and json encoders so that we can encode them into json docs
+	for i := 0; i < reply.NReduce; i++ {
+
+		intermediateFileName := "mr-" + strconv.Itoa(reply.MapTaskNumber) + "-" + strconv.Itoa(i)
+		tmpFile, err := os.Create(intermediateFileName)
+		printIfError(err)
+
+		intermediateFiles[i] = tmpFile
+		jsonEncoders[i] = json.NewEncoder(tmpFile)
+	}
+
+	//partition the output from map (using ihash) into intermediate files for further work
+	for _, kv := range mapResult {
+		err = jsonEncoders[ihash(kv.Key)%reply.NReduce].Encode(kv)
+		printIfError(err)
+	}
+
 	/*
-		filename := "mr-" + ihash()
-		a, err := os.Create()
-		enc := json.NewEncoder(file)
-		for _, kv := ... {
-			err := enc.Encode(&kv)
-		// Your worker implementation here.
+		outputName := "mr-out-" + strconv.Itoa(reply.MapTaskNumber)
+		outputFile, _ := os.Create(outputName)
 
-		// uncomment to send the Example RPC to the coordinator.
-		// CallExample()
-
-
-	*/
-	sort.Sort(ByKey(intermediate))
-
-	oname := "mr-out-0"
-	ofile, _ := os.Create(oname)
-
-	//
-	// call Reduce on each distinct key in intermediate[],
-	// and print the result to mr-out-0.
-	//
-	i := 0
-	for i < len(intermediate) {
-		j := i + 1
-		for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
-			j++
-		}
-		values := []string{}
-		for k := i; k < j; k++ {
-			values = append(values, intermediate[k].Value)
-		}
-		output := reducef(intermediate[i].Key, values)
+		//
+		// call Reduce on each distinct key in intermediate[],
+		// and print the result to mr-out-0.
+		//
+		i := 0
+		for i < len(intermediate) {
+			j := i + 1
+			for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
+				j++
+			}
+			values := []string{}
+			for k := i; k < j; k++ {
+				values = append(values, intermediate[k].Value)
+			}
+			output := reducef(intermediate[i].Key, values)
 
 		// this is the correct format for each line of Reduce output.
 		fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
 
-		i = j
-	}
+			i = j
+		}
 
 	ofile.Close()
 }
@@ -116,6 +118,29 @@ func RequestTask() string {
 		fmt.Printf("call failed!\n")
 	}
 	return reply.Filename
+}
+
+func RequestReduceTask() *TaskReply {
+
+	args := GetTaskArgs{}
+	args.X = 99
+
+	reply := TaskReply{}
+
+	ok := call("Coordinator.GrantReduceTask", &args, &reply)
+	if ok {
+		// reply.Y should be 100.
+		fmt.Printf("reply.Y %v\n", reply.Filename)
+		return &reply
+	} else {
+		fmt.Printf("call failed!\n")
+	}
+	return &reply
+}
+
+func SignalMapDone() {
+
+	return nil
 }
 
 // send an RPC request to the coordinator, wait for the response.

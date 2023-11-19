@@ -18,13 +18,24 @@ type Coordinator struct {
 // an example RPC handler.
 //
 // the RPC argument and reply types are defined in rpc.go.
-func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
-	// todo: grant any task
+func (c *Coordinator) GrantMapTask(args *GetTaskArgs, reply *TaskReply) error {
+	// todo: grant any task. Pop from a stack of predefined text files?
 	reply.Filename = "../main/pg-dorian_gray.txt"
+	reply.MapTaskNumber = taskNr
+	reply.NReduce = c.nReduce
+	taskNr += 1
 	return nil
 }
 
-func (c *Coordinator) ProcessIntermediateFile()
+func (c *Coordinator) GrantReduceTask(args *GetTaskArgs, reply *TaskReply) error {
+
+	return nil
+}
+
+func (c *Coordinator) SignalMapDone(mTaskNumber int) error {
+
+	return nil
+}
 
 // start a thread that listens for RPCs from worker.go
 func (c *Coordinator) server() {
@@ -52,7 +63,6 @@ func (c *Coordinator) Done() bool {
 		ret = true
 	}
 	// question: what is the entire job?
-	// answer: when we have the final result after reduce tasks
 
 	// Your code here.
 
