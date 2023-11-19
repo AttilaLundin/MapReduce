@@ -13,6 +13,8 @@ type Coordinator struct {
 	done    bool
 }
 
+var taskNr = 0
+
 // Your code here -- RPC handlers for the worker to call.
 
 // an example RPC handler.

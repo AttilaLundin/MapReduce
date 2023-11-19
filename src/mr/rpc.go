@@ -19,7 +19,9 @@ type IntermediateFile struct {
 }
 
 type TaskReply struct {
-	Filename string
+	Filename      string
+	MapTaskNumber int
+	NReduce       int
 }
 
 // Cook up a unique-ish UNIX-domain socket name

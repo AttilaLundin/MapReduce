@@ -1,21 +1,23 @@
 package mr
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/rpc"
 	"os"
 	"sort"
+	"strconv"
 )
 
 type KeyValueSlice []KeyValue
 
 // for sorting by key.
-func (a ByKey) Len() int           { return len(a) }
-func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
+func (a KeyValueSlice) Len() int           { return len(a) }
+func (a KeyValueSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a KeyValueSlice) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 // Map functions return a slice of KeyValue.
 type KeyValue struct {
@@ -27,13 +29,13 @@ type KeyValue struct {
 // task number for each KeyValue emitted by Map.
 func ihash(key string) int {
 	h := fnv.New32a()
-	h.Write([]byte(key))
+	_, err := h.Write([]byte(key))
+	printIfError(err)
 	return int(h.Sum32() & 0x7fffffff)
 }
 
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
-	intermediate := []KeyValue{}
 
 	reply := RequestMapTask()
 	if reply.Filename == "nil" {
@@ -91,33 +93,40 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 			}
 			output := reducef(intermediate[i].Key, values)
 
-		// this is the correct format for each line of Reduce output.
-		fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
+			// this is the correct format for each line of Reduce output.
+			fmt.Fprintf(outputFile, "%v %v\n", intermediate[i].Key, output)
 
 			i = j
 		}
 
-	ofile.Close()
+		err = outputFile.Close()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	*/
+
 }
 
 // example function to show how to make an RPC call to the coordinator.
 //
 // the RPC argument and reply types are defined in rpc.go.
-func RequestTask() string {
+func RequestMapTask() *TaskReply {
+	//TODO: ta bort args, inte nu men senare när vi är säkra på att vi inte behöver den?
 	args := GetTaskArgs{}
 	args.X = 99
 
 	reply := TaskReply{}
 
-	ok := call("Coordinator.GrantTask", &args, &reply)
+	ok := call("Coordinator.GrantMapTask", &args, &reply)
 	if ok {
 		// reply.Y should be 100.
 		fmt.Printf("reply.Y %v\n", reply.Filename)
-		return reply.Filename
+		return &reply
 	} else {
 		fmt.Printf("call failed!\n")
 	}
-	return reply.Filename
+	return &reply
 }
 
 func RequestReduceTask() *TaskReply {
@@ -162,4 +171,16 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 
 	fmt.Println(err)
 	return false
+}
+
+func logIfFatalError(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+func printIfError(err error) {
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }
