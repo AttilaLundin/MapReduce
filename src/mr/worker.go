@@ -149,7 +149,6 @@ func RequestReduceTask() *TaskReply {
 
 func SignalMapDone() {
 
-	return nil
 }
 
 // send an RPC request to the coordinator, wait for the response.
