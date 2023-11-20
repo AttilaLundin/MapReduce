@@ -13,8 +13,15 @@ type Coordinator struct {
 	nReduce int
 	files   []string
 	done    bool
-	tasks   []Task
+	tasks   map[string]Task
+	status  Status
 }
+
+const (
+	MAP    Status = 0
+	REDUCE        = 1
+	DONE          = 2
+)
 
 const (
 	NOTSTARTED  Status = 0
@@ -28,6 +35,15 @@ type Task struct {
 }
 
 var taskNr = 0
+
+func (c *Coordinator) updateTaskStatus(filename string, nextStatus Status) bool {
+	task, ok := c.tasks[filename]
+	if !ok {
+		return false
+	}
+	task.status = nextStatus
+	return true
+}
 
 // Your code here -- RPC handlers for the worker to call.
 
@@ -55,7 +71,26 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
 func (c *Coordinator) MapDoneSignalled(args *SignalMapDoneArgs, reply *TaskReply) error {
 
+	for _, intermediateFile := range args.IntermediateFiles {
+		ok := c.updateTaskStatus(intermediateFile.filename, MAPPINGDONE)
+		if !ok {
+			//	TODO: handle error
+		}
+	}
+
+	c.checkPhase(REDUCE)
 	return nil
+}
+func (c *Coordinator) checkPhase(status Status) {
+	for _, task := range c.tasks {
+		if task.status != status {
+			return
+		}
+	}
+	if status == DONE {
+		c.Done()
+	}
+	c.status = REDUCE
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -98,12 +133,12 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		files:   files,
 		nReduce: nReduce,
 		done:    false,
-		tasks:   make([]Task, len(files)),
+		tasks:   make(map[string]Task, len(files)),
+		status:  MAP,
 	}
 
 	for i, file := range files {
-		c.tasks[i].status = NOTSTARTED
-		c.tasks[i].filename = file
+		c.tasks[file] = Task{status: NOTSTARTED, filename: file}
 	}
 
 	c.server()

@@ -79,7 +79,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		printIfError(err)
 	}
 
-	success := SignalMapDone(&intermediateFilePaths, replyMap.MapTaskNumber)
+	success := SignalMapDone(&intermediateFilePaths, &replyMap.Filename)
 	if !success {
 		println("Signalling failed")
 	}
@@ -164,7 +164,7 @@ func RequestReduceTask() *TaskReply {
 
 }
 
-func SignalMapDone(intermediateFilePaths *[]string, mapTaskNumber int) bool {
+func SignalMapDone(intermediateFilePaths *[]string, filename *string) bool {
 
 	args := SignalMapDoneArgs{make([]IntermediateFile, len(*intermediateFilePaths))}
 	for i, path := range *intermediateFilePaths {

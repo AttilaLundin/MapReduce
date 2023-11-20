@@ -15,9 +15,9 @@ type GetTaskArgs struct {
 }
 
 type IntermediateFile struct {
-	MapTaskNumber int
-	PartitionId   int
-	Path          string
+	filename    string
+	PartitionId int
+	Path        string
 }
 
 type SignalMapDoneArgs struct {
