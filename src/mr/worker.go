@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"time"
 )
 
 type KeyValueSlice []KeyValue
@@ -54,8 +55,10 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	var mapResult KeyValueSlice = mapf(replyMap.Filename, string(content))
 	sort.Sort(mapResult)
 
-	intermediateFiles := make([]*os.File, reply.NReduce)
-	jsonEncoders := make([]*json.Encoder, reply.NReduce)
+	intermediateFiles := make([]*os.File, replyMap.NReduce)
+	intermediateFilePaths := make([]string, replyMap.NReduce)
+	jsonEncoders := make([]*json.Encoder, replyMap.NReduce)
+
 	// create intermediate files and json encoders so that we can encode them into json docs
 	for i := 0; i < replyMap.NReduce; i++ {
 
@@ -63,7 +66,10 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		tmpFile, err := os.Create(intermediateFileName)
 		printIfError(err)
 
+		//store the pointer to the intermediate file
 		intermediateFiles[i] = tmpFile
+		//store the file directory
+		intermediateFilePaths[i] = "../main" + intermediateFileName
 		jsonEncoders[i] = json.NewEncoder(tmpFile)
 	}
 
@@ -71,6 +77,16 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	for _, kv := range mapResult {
 		err = jsonEncoders[ihash(kv.Key)%replyMap.NReduce].Encode(kv)
 		printIfError(err)
+	}
+
+	success := SignalMapDone(&intermediateFilePaths, replyMap.MapTaskNumber)
+	if !success {
+		println("Signalling failed")
+	}
+
+	replyTask := RequestReduceTask()
+	if replyTask.Filename == "nil" {
+		fmt.Println("Filename is empty")
 	}
 
 	/*
@@ -111,10 +127,10 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 // example function to show how to make an RPC call to the coordinator.
 //
 // the RPC argument and reply types are defined in rpc.go.
+
 func RequestMapTask() *TaskReply {
-	//TODO: ta bort args, inte nu men senare när vi är säkra på att vi inte behöver den?
 	args := GetTaskArgs{}
-	args.X = 99
+	args.Tasktype = "MapTask"
 
 	reply := TaskReply{}
 

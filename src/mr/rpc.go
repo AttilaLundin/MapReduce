@@ -11,11 +11,17 @@ import "strconv"
 
 // todo: justera eventuellt
 type GetTaskArgs struct {
-	X int
+	Tasktype string
 }
 
 type IntermediateFile struct {
-	data []byte
+	MapTaskNumber int
+	PartitionId   int
+	Path          string
+}
+
+type SignalMapDoneArgs struct {
+	IntermediateFiles []IntermediateFile
 }
 
 type TaskReply struct {

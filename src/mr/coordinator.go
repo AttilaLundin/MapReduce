@@ -16,6 +16,17 @@ type Coordinator struct {
 	tasks   []Task
 }
 
+const (
+	NOTSTARTED  Status = 0
+	MAPPINGDONE        = 1
+	REDUCEDONE         = 2
+)
+
+type Task struct {
+	filename string
+	status   Status
+}
+
 var taskNr = 0
 
 // Your code here -- RPC handlers for the worker to call.
