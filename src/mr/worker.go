@@ -37,12 +37,12 @@ func ihash(key string) int {
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 
-	reply := RequestMapTask()
-	if reply.Filename == "nil" {
+	replyMap := RequestMapTask()
+	if replyMap.Filename == "nil" {
 		fmt.Println("Filename is empty")
 	}
 
-	file, err := os.Open(reply.Filename)
+	file, err := os.Open(replyMap.Filename)
 	printIfError(err)
 
 	content, err := io.ReadAll(file)
@@ -51,15 +51,15 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	err = file.Close()
 	printIfError(err)
 
-	var mapResult KeyValueSlice = mapf(reply.Filename, string(content))
+	var mapResult KeyValueSlice = mapf(replyMap.Filename, string(content))
 	sort.Sort(mapResult)
 
 	intermediateFiles := make([]*os.File, reply.NReduce)
 	jsonEncoders := make([]*json.Encoder, reply.NReduce)
 	// create intermediate files and json encoders so that we can encode them into json docs
-	for i := 0; i < reply.NReduce; i++ {
+	for i := 0; i < replyMap.NReduce; i++ {
 
-		intermediateFileName := "mr-" + strconv.Itoa(reply.MapTaskNumber) + "-" + strconv.Itoa(i)
+		intermediateFileName := "mr-" + strconv.Itoa(replyMap.MapTaskNumber) + "-" + strconv.Itoa(i)
 		tmpFile, err := os.Create(intermediateFileName)
 		printIfError(err)
 
@@ -67,9 +67,9 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		jsonEncoders[i] = json.NewEncoder(tmpFile)
 	}
 
-	//partition the output from map (using ihash) into intermediate files for further work
+	//partition the output from map (using ihash) into intermediate files with json for further work
 	for _, kv := range mapResult {
-		err = jsonEncoders[ihash(kv.Key)%reply.NReduce].Encode(kv)
+		err = jsonEncoders[ihash(kv.Key)%replyMap.NReduce].Encode(kv)
 		printIfError(err)
 	}
 
@@ -147,7 +147,25 @@ func RequestReduceTask() *TaskReply {
 	return &reply
 }
 
-func SignalMapDone() {
+func SignalMapDone(intermediateFilePaths *[]string, mapTaskNumber int) bool {
+
+	args := SignalMapDoneArgs{make([]IntermediateFile, len(*intermediateFilePaths))}
+	for i, path := range *intermediateFilePaths {
+		args.IntermediateFiles[i].Path = path
+		args.IntermediateFiles[i].PartitionId = i
+		args.IntermediateFiles[i].MapTaskNumber = mapTaskNumber
+	}
+
+	reply := TaskReply{}
+
+	ok := call("Coordinator.MapDoneSignalled", &reply, &args)
+	if ok {
+		fmt.Println("Coordinator has been signalled")
+		return true
+	} else {
+		fmt.Printf("call failed!\n")
+		return false
+	}
 
 }
 

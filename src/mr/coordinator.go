@@ -6,11 +6,14 @@ import "os"
 import "net/rpc"
 import "net/http"
 
+type Status int64
+
 type Coordinator struct {
 	// Your definitions here.
 	nReduce int
 	files   []string
 	done    bool
+	tasks   []Task
 }
 
 var taskNr = 0
@@ -29,12 +32,7 @@ func (c *Coordinator) GrantMapTask(args *GetTaskArgs, reply *TaskReply) error {
 	return nil
 }
 
-func (c *Coordinator) GrantReduceTask(args *GetTaskArgs, reply *TaskReply) error {
-
-	return nil
-}
-
-func (c *Coordinator) SignalMapDone(mTaskNumber int) error {
+func (c *Coordinator) MapDoneSignalled(args *SignalMapDoneArgs, reply *TaskReply) error {
 
 	return nil
 }
