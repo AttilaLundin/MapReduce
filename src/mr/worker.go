@@ -170,7 +170,7 @@ func SignalMapDone(intermediateFilePaths *[]string, filename *string) bool {
 	for i, path := range *intermediateFilePaths {
 		args.IntermediateFiles[i].Path = path
 		args.IntermediateFiles[i].PartitionId = i
-		args.IntermediateFiles[i].MapTaskNumber = mapTaskNumber
+		args.IntermediateFiles[i].filename = *filename
 	}
 
 	reply := TaskReply{}
