@@ -34,12 +34,22 @@ var taskNr = 0
 // an example RPC handler.
 //
 // the RPC argument and reply types are defined in rpc.go.
-func (c *Coordinator) GrantMapTask(args *GetTaskArgs, reply *TaskReply) error {
+func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 	// todo: grant any task. Pop from a stack of predefined text files?
-	reply.Filename = "../main/pg-dorian_gray.txt"
-	reply.MapTaskNumber = taskNr
-	reply.NReduce = c.nReduce
-	taskNr += 1
+	switch args.Tasktype {
+	case "MapTask":
+
+		reply.Filename = "../main/pg-dorian_gray.txt"
+		reply.MapTaskNumber = taskNr
+		reply.NReduce = c.nReduce
+		reply.ReduceTaskAvailable = false
+		taskNr += 1
+
+	case "ReduceTask":
+
+		//TODO
+	}
+
 	return nil
 }
 
@@ -84,9 +94,17 @@ func (c *Coordinator) Done() bool {
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	c := Coordinator{files: files, nReduce: nReduce, done: false}
+	c := Coordinator{
+		files:   files,
+		nReduce: nReduce,
+		done:    false,
+		tasks:   make([]Task, len(files)),
+	}
 
-	// Your code here.
+	for i, file := range files {
+		c.tasks[i].status = NOTSTARTED
+		c.tasks[i].filename = file
+	}
 
 	c.server()
 	return &c

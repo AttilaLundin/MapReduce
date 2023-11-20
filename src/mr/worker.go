@@ -134,7 +134,7 @@ func RequestMapTask() *TaskReply {
 
 	reply := TaskReply{}
 
-	ok := call("Coordinator.GrantMapTask", &args, &reply)
+	ok := call("Coordinator.GrantTask", &args, &reply)
 	if ok {
 		// reply.Y should be 100.
 		fmt.Printf("reply.Y %v\n", reply.Filename)
@@ -148,19 +148,20 @@ func RequestMapTask() *TaskReply {
 func RequestReduceTask() *TaskReply {
 
 	args := GetTaskArgs{}
-	args.X = 99
+	args.Tasktype = "ReduceTask"
 
 	reply := TaskReply{}
 
-	ok := call("Coordinator.GrantReduceTask", &args, &reply)
-	if ok {
-		// reply.Y should be 100.
-		fmt.Printf("reply.Y %v\n", reply.Filename)
-		return &reply
-	} else {
-		fmt.Printf("call failed!\n")
+	for {
+		time.Sleep(time.Second)
+		ok := call("Coordinator.GrantTask", &args, &reply)
+		if ok && reply.ReduceTaskAvailable {
+			return &reply
+		} else if ok && !reply.ReduceTaskAvailable {
+			println("Reduce task currently unavailable... trying again")
+		}
 	}
-	return &reply
+
 }
 
 func SignalMapDone(intermediateFilePaths *[]string, mapTaskNumber int) bool {
