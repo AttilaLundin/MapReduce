@@ -110,7 +110,16 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		group[reduceKV[i].Key] = append(group[reduceKV[i].Key], reduceKV[i].Value)
 	}
 
-	output := reducef(rFile, string)
+	oname := "mr-out-0"
+	ofile, _ := os.Create(oname)
+
+	for key, values := range group {
+		output := reducef(key, values)
+		fmt.Printf("Key: %s, Reduced Output: %s\n", key, output)
+		fmt.Fprintf(ofile, "%v %v\n", key, output)
+	}
+
+	ofile.Close()
 
 	// after reduce
 	reduceSuccess := SignalPhaseDone(&intermediateFilePaths, &replyMap.Filename, "reduce")
@@ -118,34 +127,29 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		println("Signalling reduce done failed")
 	}
 
-	oname := "mr-out-0"
-	ofile, _ := os.Create(oname)
-
+	//
+	// call Reduce on each distinct key in intermediate[],
+	// and print the result to mr-out-0.
+	//
 	/*
-		//
-		// call Reduce on each distinct key in intermediate[],
-		// and print the result to mr-out-0.
-		//
 		i := 0
-		for i < len(intermediate) {
+		for i < len(reduceKV) {
 			j := i + 1
-			for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
+			for j < len(reduceKV) && reduceKV[j].Key == reduceKV[i].Key {
 				j++
 			}
 			values := []string{}
 			for k := i; k < j; k++ {
-				values = append(values, intermediate[k].Value)
+				values = append(values, reduceKV[k].Value)
 			}
-			output := reducef(intermediate[i].Key, values)
+			output := reducef(reduceKV[i].Key, values)
 
 			// this is the correct format for each line of Reduce output.
-			fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
+			fmt.Fprintf(ofile, "%v %v\n", reduceKV[i].Key, output)
 
 			i = j
-		}
+		}*/
 
-		ofile.Close()
-	*/
 }
 
 // example function to show how to make an RPC call to the coordinator.
