@@ -38,11 +38,26 @@ func ihash(key string) int {
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 
-	replyMap := RequestMapTask()
-	if replyMap.Filename == "nil" {
-		fmt.Println("Filename is empty")
+	for {
+		reply := RequestTask()
+		if reply.Filename == "nil" && reply.Status != DONE {
+			fmt.Println("Filename is empty")
+			// todo: kill
+		}
+		switch reply.Status {
+		case MAP_PHASE:
+			MapTask(reply, mapf)
+		case REDUCE_PHASE:
+			ReduceTask(reply, reducef)
+		case DONE:
+			return
+		}
+		time.Sleep(time.Second)
 	}
 
+}
+
+func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 	file, err := os.Open(replyMap.Filename)
 	printIfError(err)
 
@@ -62,7 +77,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	// create intermediate files and json encoders so that we can encode them into json docs
 	for i := 0; i < replyMap.NReduce; i++ {
 
-		intermediateFileName := "mr-" + strconv.Itoa(replyMap.MapTaskNumber) + "-" + strconv.Itoa(i)
+		intermediateFileName := "mr-" + strconv.Itoa(replyMap.TaskNumber) + "-" + strconv.Itoa(i)
 		tmpFile, err := os.Create(intermediateFileName)
 		printIfError(err)
 
@@ -79,15 +94,22 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		printIfError(err)
 	}
 
-	mapSuccess := SignalPhaseDone(&intermediateFilePaths, &replyMap.Filename, "map")
+	args := SignalPhaseDoneArgs{IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths)), Status: DONE}
+	for i, path := range intermediateFilePaths {
+		args.IntermediateFiles[i].Path = path
+		args.IntermediateFiles[i].ReduceTaskNumber = i
+		args.IntermediateFiles[i].filename = replyMap.Filename
+	}
+
+	reply := TaskReply{}
+
+	mapSuccess := SignalPhaseDone(args, reply)
 	if !mapSuccess {
 		println("Signalling map done failed")
 	}
+}
 
-	replyReduce := RequestReduceTask()
-	if replyReduce.Filename == "nil" {
-		fmt.Println("Filename is empty")
-	}
+func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 
 	// implement reduce
 	// json decode from replyReduce.filename
@@ -111,7 +133,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		group[reduceKV[i].Key] = append(group[reduceKV[i].Key], reduceKV[i].Value)
 	}
 
-	oname := "mr-out-0"
+	oname := "mr-out-" + strconv.Itoa(replyReduce.TaskNumber)
 	ofile, _ := os.Create(oname)
 
 	for key, values := range group {
@@ -122,35 +144,13 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 
 	ofile.Close()
 
-	// after reduce
-	reduceSuccess := SignalPhaseDone(&intermediateFilePaths, &replyMap.Filename, "reduce")
+	args := SignalPhaseDoneArgs{Status: DONE}
+	reply := TaskReply{}
+
+	reduceSuccess := SignalPhaseDone(args, reply)
 	if !reduceSuccess {
 		println("Signalling reduce done failed")
 	}
-
-	//
-	// call Reduce on each distinct key in intermediate[],
-	// and print the result to mr-out-0.
-	//
-	/*
-		i := 0
-		for i < len(reduceKV) {
-			j := i + 1
-			for j < len(reduceKV) && reduceKV[j].Key == reduceKV[i].Key {
-				j++
-			}
-			values := []string{}
-			for k := i; k < j; k++ {
-				values = append(values, reduceKV[k].Value)
-			}
-			output := reducef(reduceKV[i].Key, values)
-
-			// this is the correct format for each line of Reduce output.
-			fmt.Fprintf(ofile, "%v %v\n", reduceKV[i].Key, output)
-
-			i = j
-		}*/
-
 }
 
 // example function to show how to make an RPC call to the coordinator.
@@ -171,16 +171,7 @@ func RequestTask() *TaskReply {
 	return &reply
 }
 
-func SignalPhaseDone(intermediateFilePaths *[]string, filename *string, phase string) bool {
-
-	args := SignalMapDoneArgs{make([]IntermediateFile, len(*intermediateFilePaths))}
-	for i, path := range *intermediateFilePaths {
-		args.IntermediateFiles[i].Path = path
-		args.IntermediateFiles[i].PartitionId = i
-		args.IntermediateFiles[i].filename = *filename
-	}
-
-	reply := TaskReply{}
+func SignalPhaseDone(args interface{}, reply TaskReply) bool {
 
 	ok := call("Coordinator.PhaseDoneSignalled", &reply, &args)
 	if ok {

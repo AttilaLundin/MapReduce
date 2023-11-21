@@ -13,12 +13,12 @@ import (
 type Status int64
 
 type Coordinator struct {
-	// Your definitions here.
-	nReduce int
-	files   []string
-	done    bool
-	tasks   map[string]Task
-	status  Status
+	nReduce           int
+	files             []string
+	done              bool
+	tasks             map[string]Task
+	intermediateFiles map[int][]IntermediateFile
+	status            Status
 }
 
 const (
@@ -32,17 +32,7 @@ type Task struct {
 	status   Status
 }
 
-var mapTaskNr = 0
-var rTaskNr = 0
-
-func (c *Coordinator) updateTaskStatus(filename string, nextStatus Status) bool {
-	task, ok := c.tasks[filename]
-	if !ok {
-		return false
-	}
-	task.status = nextStatus
-	return true
-}
+var taskNr = 0
 
 // Your code here -- RPC handlers for the worker to call.
 
@@ -54,10 +44,9 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 	switch c.status {
 
 	case MAP_PHASE:
-
-		if mapTaskNr < len(c.files) {
-			reply.Filename = c.files[mapTaskNr] //"../main/pg-dorian_gray.txt"
-			reply.MapTaskNumber = mapTaskNr
+		if taskNr < len(c.files) {
+			reply.Filename = c.files[taskNr]
+			reply.TaskNumber = taskNr
 			reply.NReduce = c.nReduce
 			reply.Status = MAP_PHASE
 			taskNr += 1
@@ -66,11 +55,8 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 		}
 
 	case REDUCE_PHASE:
-
-		if rTaskNr < c.nReduce {
-
-			reply.Filename = c.files[rTaskNr] //"../main/pg-dorian_gray.txt"
-			//reply.MapTaskNumber = mapTaskNr
+		if taskNr < c.nReduce {
+			reply.intermediateFile = c.intermediateFiles[taskNr]
 			reply.NReduce = c.nReduce
 			reply.Status = REDUCE_PHASE
 			taskNr += 1
@@ -87,10 +73,29 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 	return nil
 }
 
-func (c *Coordinator) MapDoneSignalled(args *SignalMapDoneArgs, reply *TaskReply) error {
+func (c *Coordinator) updateTaskStatus(filename string, newStatus Status) bool {
+	task, ok := c.tasks[filename]
+	if !ok {
+		return false
+	}
+	task.status = newStatus
+	return true
+}
 
+func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
 	for _, intermediateFile := range args.IntermediateFiles {
 		c.intermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.intermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
+		ok := c.updateTaskStatus(intermediateFile.filename, args.Status)
+		if !ok {
+			//	TODO: handle error
+		}
+	}
+	c.checkPhase(args.Status)
+	return nil
+}
+
+func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
+	for _, intermediateFile := range args.IntermediateFiles {
 		ok := c.updateTaskStatus(intermediateFile.filename, args.Status)
 		if !ok {
 			//	TODO: handle error
@@ -106,10 +111,18 @@ func (c *Coordinator) checkPhase(status Status) {
 			return
 		}
 	}
-	if status == DONE {
+
+	switch status {
+	case REDUCE_PHASE:
+		c.status = REDUCE_PHASE
+		taskNr = 0
+		return
+	case DONE:
 		c.Done()
+	default:
+		fmt.Println("you should not get here")
 	}
-	c.status = REDUCE_PHASE
+
 }
 
 // start a thread that listens for RPCs from worker.go
