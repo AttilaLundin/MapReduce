@@ -57,7 +57,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 
 	intermediateFiles := make([]*os.File, replyMap.NReduce)
 	intermediateFilePaths := make([]string, replyMap.NReduce)
-	jsonEncoders := make([]*json.Encoder, replyMap.NReduce)
+	encs := make([]*json.Encoder, replyMap.NReduce)
 
 	// create intermediate files and json encoders so that we can encode them into json docs
 	for i := 0; i < replyMap.NReduce; i++ {
@@ -70,29 +70,58 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		intermediateFiles[i] = tmpFile
 		//store the file directory
 		intermediateFilePaths[i] = "../main" + intermediateFileName
-		jsonEncoders[i] = json.NewEncoder(tmpFile)
+		encs[i] = json.NewEncoder(tmpFile)
 	}
 
 	//partition the output from map (using ihash) into intermediate files with json for further work
 	for _, kv := range mapResult {
-		err = jsonEncoders[ihash(kv.Key)%replyMap.NReduce].Encode(kv)
+		err = encs[ihash(kv.Key)%replyMap.NReduce].Encode(kv)
 		printIfError(err)
 	}
 
-	success := SignalMapDone(&intermediateFilePaths, &replyMap.Filename)
-	if !success {
-		println("Signalling failed")
+	mapSuccess := SignalPhaseDone(&intermediateFilePaths, &replyMap.Filename, "map")
+	if !mapSuccess {
+		println("Signalling map done failed")
 	}
 
-	replyTask := RequestReduceTask()
-	if replyTask.Filename == "nil" {
+	replyReduce := RequestReduceTask()
+	if replyReduce.Filename == "nil" {
 		fmt.Println("Filename is empty")
 	}
 
-	/*
-		outputName := "mr-out-" + strconv.Itoa(reply.MapTaskNumber)
-		outputFile, _ := os.Create(outputName)
+	// implement reduce
+	// json decode from replyReduce.filename
+	rFile, err := os.Open(replyReduce.Filename)
+	printIfError(err)
 
+	var reduceKV []KeyValue
+	dec := json.NewDecoder(rFile)
+	for {
+		var kv KeyValue
+		if err := dec.Decode(kv); err != nil {
+			break
+		}
+		reduceKV = append(reduceKV, kv)
+	}
+
+	group := make(map[string][]string)
+
+	for i := 0; i < len(reduceKV); i++ {
+		group[reduceKV[i].Key] = append(group[reduceKV[i].Key], reduceKV[i].Value)
+	}
+
+	output := reducef(rFile, string)
+
+	// after reduce
+	reduceSuccess := SignalPhaseDone(&intermediateFilePaths, &replyMap.Filename, "reduce")
+	if !reduceSuccess {
+		println("Signalling reduce done failed")
+	}
+
+	oname := "mr-out-0"
+	ofile, _ := os.Create(oname)
+
+	/*
 		//
 		// call Reduce on each distinct key in intermediate[],
 		// and print the result to mr-out-0.
@@ -110,18 +139,13 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 			output := reducef(intermediate[i].Key, values)
 
 			// this is the correct format for each line of Reduce output.
-			fmt.Fprintf(outputFile, "%v %v\n", intermediate[i].Key, output)
+			fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
 
 			i = j
 		}
 
-		err = outputFile.Close()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+		ofile.Close()
 	*/
-
 }
 
 // example function to show how to make an RPC call to the coordinator.
@@ -164,7 +188,7 @@ func RequestReduceTask() *TaskReply {
 
 }
 
-func SignalMapDone(intermediateFilePaths *[]string, filename *string) bool {
+func SignalPhaseDone(intermediateFilePaths *[]string, filename *string, phase string) bool {
 
 	args := SignalMapDoneArgs{make([]IntermediateFile, len(*intermediateFilePaths))}
 	for i, path := range *intermediateFilePaths {
@@ -175,7 +199,12 @@ func SignalMapDone(intermediateFilePaths *[]string, filename *string) bool {
 
 	reply := TaskReply{}
 
-	ok := call("Coordinator.MapDoneSignalled", &reply, &args)
+	var ok bool
+	if phase == "map" {
+		ok = call("Coordinator.MapDoneSignalled", &reply, &args)
+	} else if phase == "reduce" {
+		ok = call("Coordinator.ReduceDoneSignalled", &reply, &args)
+	}
 	if ok {
 		fmt.Println("Coordinator has been signalled")
 		return true

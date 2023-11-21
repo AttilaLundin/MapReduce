@@ -1,12 +1,17 @@
 package mr
 
-import "log"
+import (
+	"errors"
+	"log"
+)
 import "net"
 import "os"
 import "net/rpc"
 import "net/http"
 
 type Status int64
+
+type Stack []Task
 
 type Coordinator struct {
 	// Your definitions here.
@@ -18,15 +23,9 @@ type Coordinator struct {
 }
 
 const (
-	MAP    Status = 0
-	REDUCE        = 1
-	DONE          = 2
-)
-
-const (
-	NOTSTARTED  Status = 0
-	MAPPINGDONE        = 1
-	REDUCEDONE         = 2
+	MAP_PHASE    Status = 0
+	REDUCE_PHASE        = 1
+	DONE                = 2
 )
 
 type Task struct {
@@ -51,19 +50,38 @@ func (c *Coordinator) updateTaskStatus(filename string, nextStatus Status) bool 
 //
 // the RPC argument and reply types are defined in rpc.go.
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
-	// todo: grant any task. Pop from a stack of predefined text files?
-	switch args.Tasktype {
-	case "MapTask":
 
-		reply.Filename = "../main/pg-dorian_gray.txt"
-		reply.MapTaskNumber = taskNr
-		reply.NReduce = c.nReduce
-		reply.ReduceTaskAvailable = false
-		taskNr += 1
+	switch c.status {
+	case MAP_PHASE:
 
-	case "ReduceTask":
+		if mapTaskNr < len(c.files) {
+			reply.Filename = c.files[mapTaskNr] //"../main/pg-dorian_gray.txt"
+			reply.MapTaskNumber = mapTaskNr
+			reply.NReduce = c.nReduce
+			reply.ReduceTaskAvailable = false
+			mapTaskNr += 1
+		} else {
+			return errors.New("Map task not available")
+		}
 
-		//TODO
+	case REDUCE_PHASE:
+
+		if rTaskNr < c.nReduce {
+
+			reply.Filename = c.files[rTaskNr] //"../main/pg-dorian_gray.txt"
+			reply.MapTaskNumber = mapTaskNr
+			reply.NReduce = c.nReduce
+			reply.ReduceTaskAvailable = false
+			rTaskNr += 1
+
+		} else {
+			return errors.New("Reduce task not available")
+		}
+
+	case DONE:
+
+		// TODO
+
 	}
 
 	return nil
@@ -72,15 +90,29 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 func (c *Coordinator) MapDoneSignalled(args *SignalMapDoneArgs, reply *TaskReply) error {
 
 	for _, intermediateFile := range args.IntermediateFiles {
-		ok := c.updateTaskStatus(intermediateFile.filename, MAPPINGDONE)
+		ok := c.updateTaskStatus(intermediateFile.filename, REDUCE_PHASE)
 		if !ok {
 			//	TODO: handle error
 		}
 	}
 
-	c.checkPhase(REDUCE)
+	c.checkPhase(REDUCE_PHASE)
 	return nil
 }
+
+func (c *Coordinator) ReduceDoneSignalled(args *SignalMapDoneArgs, reply *TaskReply) error {
+
+	for _, intermediateFile := range args.IntermediateFiles {
+		ok := c.updateTaskStatus(intermediateFile.filename, DONE)
+		if !ok {
+			//	TODO: handle error
+		}
+	}
+
+	c.checkPhase(DONE)
+	return nil
+}
+
 func (c *Coordinator) checkPhase(status Status) {
 	for _, task := range c.tasks {
 		if task.status != status {
@@ -90,7 +122,7 @@ func (c *Coordinator) checkPhase(status Status) {
 	if status == DONE {
 		c.Done()
 	}
-	c.status = REDUCE
+	c.status = REDUCE_PHASE
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -134,11 +166,11 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		nReduce: nReduce,
 		done:    false,
 		tasks:   make(map[string]Task, len(files)),
-		status:  MAP,
+		status:  MAP_PHASE,
 	}
 
-	for i, file := range files {
-		c.tasks[file] = Task{status: NOTSTARTED, filename: file}
+	for _, file := range files {
+		c.tasks[file] = Task{status: MAP_PHASE, filename: file}
 	}
 
 	c.server()
