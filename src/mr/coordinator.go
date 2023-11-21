@@ -3,11 +3,11 @@ package mr
 import (
 	"errors"
 	"log"
+	"net"
+	"net/http"
+	"net/rpc"
+	"os"
 )
-import "net"
-import "os"
-import "net/rpc"
-import "net/http"
 
 type Status int64
 
@@ -70,7 +70,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 		if rTaskNr < c.nReduce {
 
 			reply.Filename = c.files[rTaskNr] //"../main/pg-dorian_gray.txt"
-			reply.MapTaskNumber = mapTaskNr
+			//reply.MapTaskNumber = mapTaskNr
 			reply.NReduce = c.nReduce
 			reply.ReduceTaskAvailable = false
 			rTaskNr += 1
