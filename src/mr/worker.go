@@ -98,7 +98,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	dec := json.NewDecoder(rFile)
 	for {
 		var kv KeyValue
-		if err := dec.Decode(kv); err != nil {
+		if err := dec.Decode(&kv); err != nil {
 			break
 		}
 		reduceKV = append(reduceKV, kv)
@@ -206,7 +206,7 @@ func SignalPhaseDone(intermediateFilePaths *[]string, filename *string, phase st
 	var ok bool
 	if phase == "map" {
 		ok = call("Coordinator.MapDoneSignalled", &reply, &args)
-	} else if phase == "reduce" {
+	} else if phase == "reduce" { //TODO: behöver vi else if?
 		ok = call("Coordinator.ReduceDoneSignalled", &reply, &args)
 	}
 	if ok {
