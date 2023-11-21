@@ -12,8 +12,6 @@ import (
 
 type Status int64
 
-type Stack []Task
-
 type Coordinator struct {
 	// Your definitions here.
 	nReduce int
@@ -54,14 +52,15 @@ func (c *Coordinator) updateTaskStatus(filename string, nextStatus Status) bool 
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
 	switch c.status {
+
 	case MAP_PHASE:
 
 		if mapTaskNr < len(c.files) {
 			reply.Filename = c.files[mapTaskNr] //"../main/pg-dorian_gray.txt"
 			reply.MapTaskNumber = mapTaskNr
 			reply.NReduce = c.nReduce
-			reply.ReduceTaskAvailable = false
-			mapTaskNr += 1
+			reply.Status = MAP_PHASE
+			taskNr += 1
 		} else {
 			return errors.New("Map task not available")
 		}
@@ -91,26 +90,13 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 func (c *Coordinator) MapDoneSignalled(args *SignalMapDoneArgs, reply *TaskReply) error {
 
 	for _, intermediateFile := range args.IntermediateFiles {
-		ok := c.updateTaskStatus(intermediateFile.filename, REDUCE_PHASE)
+		c.intermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.intermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
+		ok := c.updateTaskStatus(intermediateFile.filename, args.Status)
 		if !ok {
 			//	TODO: handle error
 		}
 	}
-
-	c.checkPhase(REDUCE_PHASE)
-	return nil
-}
-
-func (c *Coordinator) ReduceDoneSignalled(args *SignalMapDoneArgs, reply *TaskReply) error {
-
-	for _, intermediateFile := range args.IntermediateFiles {
-		ok := c.updateTaskStatus(intermediateFile.filename, DONE)
-		if !ok {
-			//	TODO: handle error
-		}
-	}
-
-	c.checkPhase(DONE)
+	c.checkPhase(args.Status)
 	return nil
 }
 

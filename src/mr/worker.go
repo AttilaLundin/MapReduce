@@ -101,6 +101,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		if err := dec.Decode(&kv); err != nil {
 			break
 		}
+
 		reduceKV = append(reduceKV, kv)
 	}
 
@@ -115,7 +116,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 
 	for key, values := range group {
 		output := reducef(key, values)
-		fmt.Printf("Key: %s, Reduced Output: %s\n", key, output)
+
 		fmt.Fprintf(ofile, "%v %v\n", key, output)
 	}
 
@@ -156,40 +157,18 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 //
 // the RPC argument and reply types are defined in rpc.go.
 
-func RequestMapTask() *TaskReply {
+func RequestTask() *TaskReply {
 	args := GetTaskArgs{}
-	args.Tasktype = "MapTask"
-
 	reply := TaskReply{}
 
 	ok := call("Coordinator.GrantTask", &args, &reply)
 	if ok {
-		// reply.Y should be 100.
 		fmt.Printf("reply.Y %v\n", reply.Filename)
 		return &reply
 	} else {
 		fmt.Printf("call failed!\n")
 	}
 	return &reply
-}
-
-func RequestReduceTask() *TaskReply {
-
-	args := GetTaskArgs{}
-	args.Tasktype = "ReduceTask"
-
-	reply := TaskReply{}
-
-	for {
-		time.Sleep(time.Second)
-		ok := call("Coordinator.GrantTask", &args, &reply)
-		if ok && reply.ReduceTaskAvailable {
-			return &reply
-		} else if ok && !reply.ReduceTaskAvailable {
-			println("Reduce task currently unavailable... trying again")
-		}
-	}
-
 }
 
 func SignalPhaseDone(intermediateFilePaths *[]string, filename *string, phase string) bool {
@@ -203,12 +182,7 @@ func SignalPhaseDone(intermediateFilePaths *[]string, filename *string, phase st
 
 	reply := TaskReply{}
 
-	var ok bool
-	if phase == "map" {
-		ok = call("Coordinator.MapDoneSignalled", &reply, &args)
-	} else if phase == "reduce" { //TODO: behöver vi else if?
-		ok = call("Coordinator.ReduceDoneSignalled", &reply, &args)
-	}
+	ok := call("Coordinator.PhaseDoneSignalled", &reply, &args)
 	if ok {
 		fmt.Println("Coordinator has been signalled")
 		return true

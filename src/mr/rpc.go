@@ -19,8 +19,9 @@ type IntermediateFile struct {
 	Path        string
 }
 
-type SignalMapDoneArgs struct {
+type SignalPhaseDoneArgs struct {
 	IntermediateFiles []IntermediateFile
+	Status            Status
 }
 
 type TaskReply struct {
