@@ -33,7 +33,8 @@ type Task struct {
 	status   Status
 }
 
-var taskNr = 0
+var mapTaskNr = 0
+var rTaskNr = 0
 
 func (c *Coordinator) updateTaskStatus(filename string, nextStatus Status) bool {
 	task, ok := c.tasks[filename]
