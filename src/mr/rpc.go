@@ -11,7 +11,6 @@ import "strconv"
 
 // todo: justera eventuellt
 type GetTaskArgs struct {
-	Tasktype string
 }
 
 type IntermediateFile struct {

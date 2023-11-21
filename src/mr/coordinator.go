@@ -2,6 +2,7 @@ package mr
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -72,15 +73,14 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 			reply.Filename = c.files[rTaskNr] //"../main/pg-dorian_gray.txt"
 			//reply.MapTaskNumber = mapTaskNr
 			reply.NReduce = c.nReduce
-			reply.ReduceTaskAvailable = false
-			rTaskNr += 1
-
+			reply.Status = REDUCE_PHASE
+			taskNr += 1
 		} else {
 			return errors.New("Reduce task not available")
 		}
 
 	case DONE:
-
+		fmt.Println("MapReduce done")
 		// TODO
 
 	}
